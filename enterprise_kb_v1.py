@@ -8,8 +8,9 @@ from langchain_community.retrievers import BM25Retriever
 from langchain_classic.retrievers.ensemble import EnsembleRetriever
 from langchain_classic.retrievers.contextual_compression import ContextualCompressionRetriever
 from langchain_classic.retrievers.document_compressors import CrossEncoderReranker
-from langchain_community.cross_encoders import HuggingFaceCrossEncoder
-from rag_utils import generate_doc_id, clean_and_split_documents # 用你上午整理的工具
+from rag_utils import generate_doc_id, clean_and_split_documents
+from sentence_transformers import CrossEncoder
+from langchain_classic.retrievers.document_compressors.cross_encoder import BaseCrossEncoder
 
 os.chdir(os.path.dirname(os.path.abspath(__file__)))
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env"))
@@ -86,7 +87,15 @@ hybrid=EnsembleRetriever(
 )
 
 # 精排
-cross_encoder=HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-v2-m3")
+#cross_encoder=HuggingFaceCrossEncoder(model_name="BAAI/bge-reranker-v2-m3")
+
+class LocalCrossEncoder(BaseCrossEncoder):
+    def __init__(self,model_name:str):
+        self.client=CrossEncoder(model_name,local_files_only=True)
+    def score(self,text_pairs):
+        return self.client.predict(text_pairs)
+    
+cross_encoder=LocalCrossEncoder("BAAI/bge-reranker-v2-m3")
 reranker=CrossEncoderReranker(model=cross_encoder,top_n=3)
 final_retriever=ContextualCompressionRetriever(
     base_compressor=reranker,
